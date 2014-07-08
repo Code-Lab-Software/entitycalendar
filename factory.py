@@ -20,10 +20,34 @@ class EntityCalendarFactory(object):
     def create_entity_calendar_model(self, period_type, attr_name, model, app_name, mixins):
         attrs = {'__module__': "%s.models" % app_name, 'entity_attr_name': attr_name, 
                  'entity_model': models.get_model(*model.split('.')), 'entity_app_name': app_name}
+        # Fields
         fields = getattr(self, 'get_entity_calendar_%s_fields' % period_type)(attr_name, model, app_name)
         attrs.update(fields)
+        # Meta parameters
+        attrs.update(Meta=type('Meta', (), getattr(self, 'get_%s_meta_options' % period_type)(attr_name, model, app_name)))
         name = get_model_name(model, attr_name, period_type)
         return type(name, (getattr(base, 'EntityCalendar%s' % period_type.title()), ) + mixins, attrs)
+
+    def get_year_meta_options(self, attr_name, model, app_name):
+        return {'ordering': ('calendar_year__year_number',),
+                'unique_together': (attr_name, 'calendar_year'),
+        }
+
+    def get_month_meta_options(self, attr_name, model, app_name):
+        return {'ordering': ('calendar_year__year_number', 'calendar_month__month_number'),
+                'unique_together': (attr_name, 'calendar_month'),
+        }
+
+    def get_week_meta_options(self, attr_name, model, app_name):
+        return {'ordering': ('calendar_year__year_number', 'calendar_week__week_number'),
+                'unique_together': (attr_name, 'calendar_week'),
+        }
+
+    def get_day_meta_options(self, attr_name, model, app_name):
+        return {'ordering': ('calendar_day__date',),
+                'unique_together': (attr_name, 'calendar_day'),
+        }
+
 
     def get_entity_calendar_year_fields(self, attr_name, model, app_name):
         return {attr_name:  models.ForeignKey(model, related_name="%scalendaryears" % attr_name),

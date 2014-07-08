@@ -56,25 +56,26 @@ class EntityCalendarWeek(EntityCalendarBase):
 class EntityCalendaryDayManager(models.Manager):
 
     def sync_calendar_days(self, date_from, date_to):
-        for calendar_day in models.get_model('dbcalendar', 'CalendarDay').objects.filter(date__range=[date_from, date_to]):
-            self.sync_calendar_day(calendar_day)
+        dates = models.get_model('dbcalendar', 'CalendarDay').objects.filter(date__range=[date_from, date_to])
+        total_count = dates.count()
+        i = 0
+        for calendar_day in dates:
+            self.sync_calendar_day(calendar_day, objects)
+            i += 1
+            print('Processed %d of %d' % (i, total_count))
 
-    def sync_calendar_day(self, calendar_day):
-        for entity in self.model.entity_model.objects.all():
-            entity_attr_name = self.model.entity_attr_name
-            calendar_year_model = models.get_model(self.model.entity_app_name, '%sCalendarYear' % self.model.entity_attr_name.title())
-            calendar_month_model = models.get_model(self.model.entity_app_name, '%sCalendarMonth' % self.model.entity_attr_name.title())
-            calendar_week_model = models.get_model(self.model.entity_app_name, '%sCalendarWeek' % self.model.entity_attr_name.title())
-            calendar_day_model = models.get_model(self.model.entity_app_name, '%sCalendarDay' % self.model.entity_attr_name.title())
-            
+    def sync_calendar_day(self, calendar_day, objects):
+        entity_attr_name = self.model.entity_attr_name
+        calendar_year_model = models.get_model(self.model.entity_app_name, '%sCalendarYear' % self.model.entity_attr_name.title())
+        calendar_month_model = models.get_model(self.model.entity_app_name, '%sCalendarMonth' % self.model.entity_attr_name.title())
+        calendar_week_model = models.get_model(self.model.entity_app_name, '%sCalendarWeek' % self.model.entity_attr_name.title())
+        calendar_day_model = models.get_model(self.model.entity_app_name, '%sCalendarDay' % self.model.entity_attr_name.title())
+
+        for entity in self.model.entity_model.objects.all().queryset():
             entity_year, created = calendar_year_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_year': calendar_day.calendar_month.calendar_year})
-            entity_month, created = calendar_month_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_month': calendar_day.calendar_month,
-                                                                                  '%s_year' % entity_attr_name: entity_year})
-            entity_week, created = calendar_week_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_week': calendar_day.calendar_week,
-                                                                                  '%s_year' % entity_attr_name: entity_year})
-
-            entity_day, created = calendar_day_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_day': calendar_day,
-                                                                              '%s_week' % entity_attr_name: entity_week, '%s_month' % entity_attr_name: entity_month})
+            entity_month, created = calendar_month_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_month': calendar_day.calendar_month, '%s_year' % entity_attr_name: entity_year})
+            entity_week, created = calendar_week_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_week': calendar_day.calendar_week, '%s_year' % entity_attr_name: entity_year})
+            entity_day, created = calendar_day_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_day': calendar_day,'%s_week' % entity_attr_name: entity_week, '%s_month' % entity_attr_name: entity_month})
 
 
 class EntityCalendarDay(EntityCalendarBase):
