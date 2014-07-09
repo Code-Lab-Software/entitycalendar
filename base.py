@@ -60,18 +60,18 @@ class EntityCalendaryDayManager(models.Manager):
         total_count = dates.count()
         i = 0
         for calendar_day in dates:
-            self.sync_calendar_day(calendar_day, objects)
+            self.sync_calendar_day(calendar_day)
             i += 1
             print('Processed %d of %d' % (i, total_count))
 
-    def sync_calendar_day(self, calendar_day, objects):
+    def sync_calendar_day(self, calendar_day):
         entity_attr_name = self.model.entity_attr_name
         calendar_year_model = models.get_model(self.model.entity_app_name, '%sCalendarYear' % self.model.entity_attr_name.title())
         calendar_month_model = models.get_model(self.model.entity_app_name, '%sCalendarMonth' % self.model.entity_attr_name.title())
         calendar_week_model = models.get_model(self.model.entity_app_name, '%sCalendarWeek' % self.model.entity_attr_name.title())
         calendar_day_model = models.get_model(self.model.entity_app_name, '%sCalendarDay' % self.model.entity_attr_name.title())
 
-        for entity in self.model.entity_model.objects.all().queryset():
+        for entity in self.model.entity_model.objects.all().iterator():
             entity_year, created = calendar_year_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_year': calendar_day.calendar_month.calendar_year})
             entity_month, created = calendar_month_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_month': calendar_day.calendar_month, '%s_year' % entity_attr_name: entity_year})
             entity_week, created = calendar_week_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_week': calendar_day.calendar_week, '%s_year' % entity_attr_name: entity_year})
