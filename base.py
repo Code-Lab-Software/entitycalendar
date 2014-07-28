@@ -1,4 +1,10 @@
+# -*- coding: utf-8 -*-
 from django.db import models
+from django.db.models.base import ModelBase
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+
 from pubtracker.models import PublicationTracker
 
 class EntityCalendarBase(PublicationTracker):
@@ -55,28 +61,50 @@ class EntityCalendarWeek(EntityCalendarBase):
 
 class EntityCalendaryDayManager(models.Manager):
 
-    def sync_calendar_days(self, date_from, date_to):
-        dates = models.get_model('dbcalendar', 'CalendarDay').objects.filter(date__range=[date_from, date_to])
+    def sync_calendar_days(self, entity=None, date_from=None, date_to=None):
+        dates = models.get_model('dbcalendar', 'CalendarDay').objects.all()
+        if date_from:
+            dates = dates.filter(date__gte=date_from)
+        if date_to:
+            dates = dates.filter(date_lte=date_tom)
         total_count = dates.count()
         i = 0
+        print 'Sync. days %d, dla %s' % (total_count, entity)
         for calendar_day in dates:
-            self.sync_calendar_day(calendar_day)
+            self.sync_calendar_day(calendar_day, entity)
             i += 1
-            print('Processed %d of %d' % (i, total_count))
 
-    def sync_calendar_day(self, calendar_day):
+    def sync_calendar_day(self, calendar_day, entity=None):
         entity_attr_name = self.model.entity_attr_name
         calendar_year_model = models.get_model(self.model.entity_app_name, '%sCalendarYear' % self.model.entity_attr_name.title())
         calendar_month_model = models.get_model(self.model.entity_app_name, '%sCalendarMonth' % self.model.entity_attr_name.title())
         calendar_week_model = models.get_model(self.model.entity_app_name, '%sCalendarWeek' % self.model.entity_attr_name.title())
         calendar_day_model = models.get_model(self.model.entity_app_name, '%sCalendarDay' % self.model.entity_attr_name.title())
 
-        for entity in self.model.entity_model.objects.all().iterator():
-            entity_year, created = calendar_year_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_year': calendar_day.calendar_month.calendar_year})
-            entity_month, created = calendar_month_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_month': calendar_day.calendar_month, '%s_year' % entity_attr_name: entity_year})
-            entity_week, created = calendar_week_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_week': calendar_day.calendar_week, '%s_year' % entity_attr_name: entity_year})
-            entity_day, created = calendar_day_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_day': calendar_day,'%s_week' % entity_attr_name: entity_week, '%s_month' % entity_attr_name: entity_month})
+        for entity in self.model.entity_model.objects.all().iterator() if entity is None else [entity]:
+            self.sync_entity_calendar_day(entity, calendar_day, entity_attr_name, calendar_year_model, calendar_month_model, calendar_week_model, calendar_day_model)
 
+
+    def sync_entity_calendar_day(self, entity, calendar_day, entity_attr_name, calendar_year_model, calendar_month_model, calendar_week_model, calendar_day_model):
+        entity_year, created = calendar_year_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_year': calendar_day.calendar_month.calendar_year})
+        entity_month, created = calendar_month_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_month': calendar_day.calendar_month, '%s_year' % entity_attr_name: entity_year})
+        entity_week, created = calendar_week_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_week': calendar_day.calendar_week, '%s_year' % entity_attr_name: entity_year})
+        entity_day, created = calendar_day_model.objects.get_or_create(**{entity_attr_name: entity, 'calendar_day': calendar_day,'%s_week' % entity_attr_name: entity_week, '%s_month' % entity_attr_name: entity_month})
+        
+
+
+# -------------------------------------------------------
+# Trakery modeli tworzonych dynamicznie
+# -------------------------------------------------------
+class EntityCalendarDayTracker(ModelBase):
+    def __new__(cls, name, bases, attrs):
+        _new = super(EntityCalendarDayTracker, cls).__new__(cls, name, bases, attrs)
+        if name != 'EntityCalendarDay':
+            _new.register_model(_new)
+        return _new
+
+def sync_entity_calendar_day_post_save(sender, instance, created, raw, using, **kwargs):
+    getattr(instance, '%scalendardays' % instance._meta.object_name.lower()).model.objects.sync_calendar_days(instance)
 
 class EntityCalendarDay(EntityCalendarBase):
     # room = models.ForeignKey('dormitorysetup.Room', verbose_name=u"Room", related_name="roomcalendardays", on_delete=models.PROTECT)
@@ -91,9 +119,18 @@ class EntityCalendarDay(EntityCalendarBase):
 
     objects = EntityCalendaryDayManager()
 
+    _reqistry = []
+    __metaclass__ = EntityCalendarDayTracker
+
+    @classmethod
+    def register_model(cls, mdl):
+        # Register mdl and connect its entity_model with post-save handler
+        # that will create all required EntityCalendar objects on object creation
+        cls._reqistry.append(mdl)
+        post_save.connect(sync_entity_calendar_day_post_save, sender=cls.entity_model, dispatch_uid="sync_entity_calendar_day_post_save_%s_%s" % (mdl._meta.app_label, mdl._meta.object_name.lower()))
+
     def __unicode__(self):
         return u"%s - %s" % (self.get_entity(), self.calendar_day)
-
 
     class Meta:
         abstract = True
