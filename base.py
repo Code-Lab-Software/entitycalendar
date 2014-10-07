@@ -66,7 +66,7 @@ class EntityCalendaryDayManager(models.Manager):
         if date_from:
             dates = dates.filter(date__gte=date_from)
         if date_to:
-            dates = dates.filter(date_lte=date_tom)
+            dates = dates.filter(date_lte=date_to)
         total_count = dates.count()
         i = 0
         print 'Sync. days %d, dla %s' % (total_count, entity)
@@ -104,7 +104,8 @@ class EntityCalendarDayTracker(ModelBase):
         return _new
 
 def sync_entity_calendar_day_post_save(sender, instance, created, raw, using, **kwargs):
-    getattr(instance, '%scalendardays' % instance._meta.object_name.lower()).model.objects.sync_calendar_days(instance)
+    if created:
+        getattr(instance, '%scalendardays' % instance._meta.object_name.lower()).model.objects.sync_calendar_days(instance)
 
 class EntityCalendarDay(EntityCalendarBase):
     # room = models.ForeignKey('dormitorysetup.Room', verbose_name=u"Room", related_name="roomcalendardays", on_delete=models.PROTECT)
