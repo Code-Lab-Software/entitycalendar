@@ -66,7 +66,7 @@ class EntityCalendaryDayManager(models.Manager):
         if date_from:
             dates = dates.filter(date__gte=date_from)
         if date_to:
-            dates = dates.filter(date_lte=date_to)
+            dates = dates.filter(date__lte=date_to)
         total_count = dates.count()
         i = 0
         print 'Sync. days %d, dla %s' % (total_count, entity)
