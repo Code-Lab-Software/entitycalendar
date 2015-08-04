@@ -34,12 +34,13 @@ class EntityCalendarFactory(object):
         }
 
     def get_month_meta_options(self, attr_name, model, app_name):
-        return {'ordering': ('calendar_year__year_number', 'calendar_month__month_number'),
+        #return {'ordering': ('calendar_year__year_number', 'calendar_month__month_number'),
+        return {'ordering': ('calendar_month__calendar_year__year_number', 'calendar_month__month_number'),
                 'unique_together': (attr_name, 'calendar_month'),
         }
 
     def get_week_meta_options(self, attr_name, model, app_name):
-        return {'ordering': ('calendar_year__year_number', 'calendar_week__week_number'),
+        return {'ordering': ('calendar_week__calendar_year__year_number', 'calendar_week__week_number'),
                 'unique_together': (attr_name, 'calendar_week'),
         }
 
